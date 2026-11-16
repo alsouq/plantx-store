@@ -3,6 +3,9 @@ import type { NextConfig } from "next"
 const backend = new URL(process.env.MEDUSA_BACKEND_URL || "http://localhost:9000")
 
 const config: NextConfig = {
+  async rewrites() {
+    return [{ source: "/static/:path*", destination: `${backend.origin}/static/:path*` }]
+  },
   images: {
     remotePatterns: [
       {

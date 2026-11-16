@@ -1,8 +1,27 @@
 import type { HttpTypes } from "@medusajs/types"
 import { cookies } from "next/headers"
-import { getRegionId, sdk } from "./medusa"
+import { BACKEND_URL, getRegionId, sdk } from "./medusa"
 
 export const CART_COOKIE = "px_cart"
+
+/**
+ * Images uploaded to the backend are served through the storefront's
+ * /static rewrite, so the browser never needs to reach the backend directly.
+ */
+export function publicUrl(url: string | null | undefined) {
+  if (!url) {
+    return url ?? null
+  }
+  return url.startsWith(BACKEND_URL) ? url.slice(BACKEND_URL.length) : url
+}
+
+function withPublicImages<T extends HttpTypes.StoreProduct>(p: T): T {
+  return {
+    ...p,
+    thumbnail: publicUrl(p.thumbnail),
+    images: (p.images ?? []).map((i) => ({ ...i, url: publicUrl(i.url) ?? i.url })),
+  }
+}
 
 const PRODUCT_FIELDS =
   "id,title,handle,description,thumbnail,metadata,collection_id,*collection,*images,*options,*options.values,*variants,*variants.options,*variants.calculated_price,+variants.inventory_quantity"
@@ -18,7 +37,7 @@ export async function listProducts(collectionHandle?: string) {
     { region_id, fields: PRODUCT_FIELDS, limit: 100, collection_id },
     { next: { revalidate: 60 } } as never
   )
-  return products
+  return products.map(withPublicImages)
 }
 
 export async function getProduct(handle: string) {
@@ -29,7 +48,7 @@ export async function getProduct(handle: string) {
     fields: PRODUCT_FIELDS,
     limit: 1,
   })
-  return products[0] as HttpTypes.StoreProduct | undefined
+  return products[0] ? withPublicImages(products[0]) : undefined
 }
 
 export async function listCollections() {
@@ -50,7 +69,11 @@ export async function getCart(): Promise<HttpTypes.StoreCart | null> {
   }
   try {
     const { cart } = await sdk.store.cart.retrieve(id, { fields: CART_FIELDS })
-    return cart.completed_at ? null : cart
+    if (cart.completed_at) {
+      return null
+    }
+    cart.items = (cart.items ?? []).map((i) => ({ ...i, thumbnail: publicUrl(i.thumbnail) ?? undefined }))
+    return cart
   } catch {
     return null
   }

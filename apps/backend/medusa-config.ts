@@ -91,7 +91,8 @@ module.exports = defineConfig({
     workerMode: (process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server") || "shared",
   },
   admin: {
-    backendUrl,
+    // "/" makes the dashboard call the API on the same address it is opened from.
+    backendUrl: process.env.ADMIN_BACKEND_URL || "/",
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
   },
   modules: [
